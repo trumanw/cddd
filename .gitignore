@@ -120,3 +120,7 @@ run2.sh
 *.html
 default_model/
 *.zip
+
+# Mac OSX cache files
+.DS_Store
+.vscode/
