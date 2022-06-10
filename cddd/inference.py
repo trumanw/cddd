@@ -100,11 +100,11 @@ class InferenceModel(object):
         flags.hparams_from_file = True
         flags.save_dir = model_dir
         self.hparams = create_hparams(flags)
-        self.hparams.set_hparam("save_dir", model_dir)
-        self.hparams.set_hparam("batch_size", batch_size)
-        self.hparams.set_hparam("gpu_mem_frac", gpu_mem_frac)
-        self.hparams.add_hparam("beam_width", beam_width)
-        self.hparams.set_hparam("cpu_threads", cpu_threads)
+        self.hparams["save_dir"] = model_dir
+        self.hparams["batch_size"] = batch_size
+        self.hparams["gpu_mem_frac"] = gpu_mem_frac
+        self.hparams["beam_width"] = beam_width
+        self.hparams["cpu_threads"] = cpu_threads
         self.encode_model, self.decode_model = build_models(self.hparams,
                                                             modes=["ENCODE", "DECODE"])
         self.maximum_iterations = maximum_iterations

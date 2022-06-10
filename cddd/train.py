@@ -26,24 +26,24 @@ def train_loop(train_model, eval_model, encoder_model, hparams):
         train_model.sess.run(train_model.model.iterator.initializer)
         step = train_model.model.initilize(
             train_model.sess,
-            overwrite_saves=hparams.overwrite_saves
+            overwrite_saves=hparams["overwrite_saves"]
         )
     hparams_file_name = FLAGS.hparams_file_name
     if hparams_file_name is None:
-        hparams_file_name = os.path.join(hparams.save_dir, 'hparams.json')
+        hparams_file_name = os.path.join(hparams["save_dir"], 'hparams.json')
     with open(hparams_file_name, 'w') as outfile:
-        json.dump(hparams.to_json(), outfile)
-    while step < hparams.num_steps:
+        json.dump(hparams, outfile)
+    while step < hparams["num_steps"]:
         with train_model.graph.as_default():
             step = train_model.model.train(train_model.sess)
-        if step % hparams.summary_freq == 0:
+        if step % hparams["summary_freq"] == 0:
             with train_model.graph.as_default():
                 train_model.model.save(train_model.sess)
             with eval_model.graph.as_default():
                 eval_model.model.restore(eval_model.sess)
                 eval_model.sess.run(eval_model.model.iterator.initializer)
                 eval_reconstruct(eval_model, step, hparams)
-        if step % hparams.inference_freq == 0:
+        if step % hparams["inference_freq"] == 0:
             with encoder_model.graph.as_default():
                 qsar_process.append(parallel_eval_qsar(encoder_model,
                                                        step,
@@ -54,7 +54,7 @@ def train_loop(train_model, eval_model, encoder_model, hparams):
 def main(unused_argv):
     """Main function that trains and evaluats the translation model"""
     hparams = create_hparams(FLAGS)
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(hparams.device)
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(hparams["device"])
     train_model, eval_model, encode_model = build_models(hparams)
     train_loop(train_model, eval_model, encode_model, hparams)
 

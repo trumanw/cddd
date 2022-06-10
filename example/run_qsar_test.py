@@ -14,7 +14,8 @@ import sys
 import argparse
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+# import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from sklearn.svm import SVC, SVR
 from sklearn.model_selection import cross_val_score, LeaveOneGroupOut
 from cddd.inference import InferenceModel
@@ -67,10 +68,10 @@ def main(unused_argv):
 
     print("Running SVM on Ames mutagenicity...")
     clf = SVC(C=5.0)
-    result = cross_val_score(clf,
-                             ames_emb,
-                             ames_labels,
-                             ames_fold,
+    result = cross_val_score(estimator=clf,
+                             X=ames_emb,
+                             y=ames_labels,
+                             groups=ames_fold,
                              cv=LeaveOneGroupOut(),
                              n_jobs=5)
     print("Ames mutagenicity accuracy: %0.3f +/- %0.3f"
@@ -78,10 +79,10 @@ def main(unused_argv):
 
     print("Running SVM on Lipophilicity...")
     clf = SVR(C=5.0)
-    result = cross_val_score(clf,
-                             lipo_emb,
-                             lipo_labels,
-                             lipo_fold,
+    result = cross_val_score(estimator=clf,
+                             X=lipo_emb,
+                             y=lipo_labels,
+                             groups=lipo_fold,
                              cv=LeaveOneGroupOut(),
                              n_jobs=5)
     print("Lipophilicity r2: %0.3f +/- %0.3f"

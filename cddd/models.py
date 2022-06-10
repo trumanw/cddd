@@ -3,7 +3,9 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 import numpy as np
-import tensorflow as tf
+import tensorflow as tfnew
+import tensorflow.compat.v1 as tf
+import tensorflow_addons as tfa
 
 class BaseModel(ABC):
     """
@@ -54,40 +56,40 @@ class BaseModel(ABC):
         """
         self.mode = mode
         self.iterator = iterator
-        self.embedding_size = hparams.emb_size
+        self.embedding_size = hparams["emb_size"]
         self.encode_vocabulary = {
-            v: k for k, v in np.load(hparams.encode_vocabulary_file, allow_pickle=True).item().items()
+            v: k for k, v in np.load(hparams["encode_vocabulary_file"], allow_pickle=True).item().items()
         }
         self.encode_voc_size = len(self.encode_vocabulary)
         self.decode_vocabulary = {
-            v: k for k, v in np.load(hparams.decode_vocabulary_file, allow_pickle=True).item().items()
+            v: k for k, v in np.load(hparams["decode_vocabulary_file"], allow_pickle=True).item().items()
         }
         self.decode_vocabulary_reverse = {v: k for k, v in self.decode_vocabulary.items()}
         self.decode_voc_size = len(self.decode_vocabulary)
-        self.one_hot_embedding = hparams.one_hot_embedding
-        self.char_embedding_size = hparams.char_embedding_size
+        self.one_hot_embedding = hparams["one_hot_embedding"]
+        self.char_embedding_size = hparams["char_embedding_size"]
         self.global_step = tf.get_variable('global_step',
                                            [],
                                            initializer=tf.constant_initializer(0),
                                            trainable=False)
-        self.save_dir = hparams.save_dir
+        self.save_dir = hparams["save_dir"]
         self.checkpoint_path = os.path.join(self.save_dir, 'model.ckpt')
-        self.batch_size = hparams.batch_size
-        self.rand_input_swap = hparams.rand_input_swap
+        self.batch_size = hparams["batch_size"]
+        self.rand_input_swap = hparams["rand_input_swap"]
         self.measures_to_log = {}
-        if hparams.emb_activation == "tanh":
+        if hparams["emb_activation"] == "tanh":
             self.emb_activation = tf.nn.tanh
-        elif hparams.emb_activation == "linear":
+        elif hparams["emb_activation"] == "linear":
             self.emb_activation = lambda x: x
         else:
             raise ValueError("This activationfunction is not implemented...")
         if mode == "TRAIN":
-            self.lr = hparams.lr
-            self.lr_decay = hparams.lr_decay
-            self.lr_decay_frequency = hparams.lr_decay_frequency
-            self.lr_decay_factor = hparams.lr_decay_factor
+            self.lr = hparams["lr"]
+            self.lr_decay = hparams["lr_decay"]
+            self.lr_decay_frequency = hparams["lr_decay_frequency"]
+            self.lr_decay_factor = hparams["lr_decay_factor"]
         if mode == "DECODE":
-            self.beam_width = hparams.beam_width
+            self.beam_width = hparams["beam_width"]
         if mode not in ["TRAIN", "EVAL", "ENCODE", "DECODE"]:
             raise ValueError("Choose one of following modes: TRAIN, EVAL, ENCODE, DECODE")
 
@@ -407,13 +409,14 @@ class GRUSeq2Seq(BaseModel):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.cell_size = hparams.cell_size
-        self.reverse_decoding = hparams.reverse_decoding
+        self.cell_size = hparams["cell_size"]
+        self.reverse_decoding = hparams["reverse_decoding"]
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
-        encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.contrib.rnn.MultiRNNCell(encoder_cell)
+        # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
+        # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        encoder_cell = [tfnew.keras.layers.GRUCell(size) for size in self.cell_size]
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -429,8 +432,10 @@ class GRUSeq2Seq(BaseModel):
         """Method that defines the decoder part of the translation model graph."""
         if self.reverse_decoding:
             self.cell_size = self.cell_size[::-1]
-        decoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        decoder_cell = tf.contrib.rnn.MultiRNNCell(decoder_cell)
+        # decoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
+        # decoder_cell = tf.nn.rnn_cell.MultiRNNCell(decoder_cell)
+        decoder_cell = [tfnew.keras.layers.GRUCell(size) for size in self.cell_size] 
+        decoder_cell = tfnew.keras.layers.StackedRNNCells(decoder_cell)
         decoder_cell_inital = tf.layers.dense(encoded_seq, sum(self.cell_size))
         decoder_cell_inital = tuple(tf.split(decoder_cell_inital, self.cell_size, 1))
         projection_layer = tf.layers.Dense(self.decode_voc_size, use_bias=False)
@@ -442,45 +447,63 @@ class GRUSeq2Seq(BaseModel):
                                                       helper,
                                                       decoder_cell_inital,
                                                       output_layer=projection_layer)
-            outputs, output_state, _ = tf.contrib.seq2seq.dynamic_decode(decoder,
+            outputs, output_state, _ = tfa.seq2seq.dynamic_decode(decoder,
                                                                          impute_finished=True,
                                                                          output_time_major=False)
             return outputs.rnn_output
         else:
-            decoder_cell_inital = tf.contrib.seq2seq.tile_batch(decoder_cell_inital,
-                                                                self.beam_width)
+            decoder_cell_inital = tfa.seq2seq.tile_batch(decoder_cell_inital,
+                                                        self.beam_width)
             start_tokens = tf.fill([tf.shape(encoded_seq)[0]], self.decode_vocabulary['<s>'])
             end_token = self.decode_vocabulary['</s>']
-            decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+            # decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+            #     cell=decoder_cell,
+            #     embedding=self.decoder_embedding,
+            #     start_tokens=start_tokens,
+            #     end_token=end_token,
+            #     initial_state=decoder_cell_inital,
+            #     beam_width=self.beam_width,
+            #     output_layer=projection_layer,
+            #     length_penalty_weight=0.0)
+            # outputs, output_state, _ = tfa.seq2seq.dynamic_decode(
+            #     decoder=decoder,
+            #     impute_finished=False,
+            #     output_time_major=False,
+            #     maximum_iterations=self.maximum_iterations
+            # )
+            decoder_instance = tfa.seq2seq.BeamSearchDecoder(
                 cell=decoder_cell,
-                embedding=self.decoder_embedding,
-                start_tokens=start_tokens,
-                end_token=end_token,
-                initial_state=decoder_cell_inital,
                 beam_width=self.beam_width,
                 output_layer=projection_layer,
-                length_penalty_weight=0.0)
-
-            outputs, output_state, _ = tf.contrib.seq2seq.dynamic_decode(
-                decoder=decoder,
-                impute_finished=False,
-                output_time_major=False,
-                maximum_iterations=self.maximum_iterations
+                length_penalty_weight=0.0
             )
+            (first_finished, first_inputs, first_state) = decoder_instance.initialize(
+                self.decoder_embedding,
+                start_tokens=start_tokens,
+                end_token=end_token,
+                initial_state=decoder_cell_inital
+            )
+            # start beam search iteration
+            inputs = first_inputs
+            state = first_state
+            for j in range(1000):
+                outputs, next_state, next_inputs, finished = decoder_instance.step(j, inputs, state)
+                inputs = next_inputs
+                state = next_state
 
             return outputs.predicted_ids
         
 class GRUVAE(GRUSeq2Seq):
     def __init__(self, mode, iterator, hparams):
         super().__init__(mode, iterator, hparams)
-        self.div_loss_scale = hparams.div_loss_scale
-        self.div_loss_rate = hparams.div_loss_rate
+        self.div_loss_scale = hparams["div_loss_scale"]
+        self.div_loss_rate = hparams["div_loss_rate"]
         
     def _encoder(self, encoder_emb_inp):
 
         """Method that defines the encoder part of the translation model graph."""
         encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.contrib.rnn.MultiRNNCell(encoder_cell)
+        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -616,8 +639,8 @@ class NoisyGRUSeq2Seq(GRUSeq2Seq):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.input_dropout = hparams.input_dropout
-        self.emb_noise = hparams.emb_noise
+        self.input_dropout = hparams["input_dropout"]
+        self.emb_noise = hparams["emb_noise"]
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
@@ -627,7 +650,7 @@ class NoisyGRUSeq2Seq(GRUSeq2Seq):
                                             1. - self.input_dropout,
                                             noise_shape=[self.batch_size, max_time, 1])
         encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.contrib.rnn.MultiRNNCell(encoder_cell)
+        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -666,12 +689,12 @@ class LSTMSeq2Seq(BaseModel):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.cell_size = hparams.cell_size
+        self.cell_size = hparams["cell_size"]
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
         encoder_cell = [tf.nn.rnn_cell.LSTMCell(size) for size in self.cell_size]
-        encoder_cell = tf.contrib.rnn.MultiRNNCell(encoder_cell)
+        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -687,7 +710,7 @@ class LSTMSeq2Seq(BaseModel):
     def _decoder(self, encoded_seq, decoder_emb_inp=None):
         """Method that defines the decoder part of the translation model graph."""
         decoder_cell = [tf.nn.rnn_cell.LSTMCell(size) for size in self.cell_size]
-        decoder_cell = tf.contrib.rnn.MultiRNNCell(decoder_cell)
+        decoder_cell = tf.nn.rnn_cell.MultiRNNCell(decoder_cell)
         initial_state_c_full = tf.layers.dense(encoded_seq, sum(self.cell_size))
         initial_state_c = tuple(tf.split(initial_state_c_full, self.cell_size, 1))
         initial_state_h_full = tf.zeros_like(initial_state_c_full)
@@ -706,7 +729,7 @@ class LSTMSeq2Seq(BaseModel):
                                                   helper,
                                                   decoder_cell_inital,
                                                   output_layer=projection_layer)
-        outputs, output_state, _ = tf.contrib.seq2seq.dynamic_decode(decoder,
+        outputs, output_state, _ = tfa.seq2seq.dynamic_decode(decoder,
                                                                      impute_finished=True,
                                                                      output_time_major=False)
         return outputs.rnn_output
@@ -733,8 +756,8 @@ class Conv2GRUSeq2Seq(GRUSeq2Seq):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.conv_hidden_size = hparams.conv_hidden_size
-        self.kernel_size = hparams.kernel_size
+        self.conv_hidden_size = hparams["conv_hidden_size"]
+        self.kernel_size = hparams["kernel_size"]
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
@@ -781,7 +804,7 @@ class GRUSeq2SeqWithFeatures(GRUSeq2Seq):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.num_features = hparams.num_features
+        self.num_features = hparams["num_features"]
 
     def build_graph(self):
         """Method that defines the graph for a translation model instance with the additional
@@ -907,8 +930,8 @@ class NoisyGRUSeq2SeqWithFeatures(GRUSeq2SeqWithFeatures):
             ValueError: if emb_activation is not tanh or linear
         """
         super().__init__(mode, iterator, hparams)
-        self.input_dropout = hparams.input_dropout
-        self.emb_noise = hparams.emb_noise
+        self.input_dropout = hparams["input_dropout"]
+        self.emb_noise = hparams["emb_noise"]
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
@@ -918,7 +941,7 @@ class NoisyGRUSeq2SeqWithFeatures(GRUSeq2SeqWithFeatures):
                                             1. - self.input_dropout,
                                             noise_shape=[self.batch_size, max_time, 1])
         encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.contrib.rnn.MultiRNNCell(encoder_cell)
+        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,

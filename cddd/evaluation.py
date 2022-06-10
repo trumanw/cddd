@@ -27,13 +27,13 @@ def parallel_eval_qsar(model, step, hparams):
     Raises:
         ValueError: if input is not SMILES or INCHI.
     """
-    df = pd.read_csv(hparams.infer_file)
-    if "smiles" in hparams.input_sequence_key:
-        if hparams.infer_input == "canonical":
+    df = pd.read_csv(hparams["infer_file"])
+    if "smiles" in hparams["input_sequence_key"]:
+        if hparams["infer_input"] == "canonical":
             seq_list = df.canonical_smiles.tolist()
-        elif hparams.infer_input == "random":
+        elif hparams["infer_input"] == "random":
             seq_list = df.random_smiles.tolist()
-    elif "inchi" in hparams.input_sequence_key:
+    elif "inchi" in hparams["input_sequence_key"]:
         seq_list = df.inchi.tolist()
         seq_list = [seq.replace("InChI=1S", "") for seq in seq_list]
     else:
@@ -150,11 +150,11 @@ def eval_qsar(step, embedding_array, dataset_array, label_array, fold_array, tas
 
         fields.extend(list(measures))
     if step == 0:
-        with open(os.path.join(hparams.save_dir, "eval_qsar.csv"), 'w') as f:
+        with open(os.path.join(hparams["save_dir"], "eval_qsar.csv"), 'w') as f:
             writer = csv.writer(f)
             writer.writerow(header)
 
-    with open(os.path.join(hparams.save_dir, "eval_qsar.csv"), 'a') as f:
+    with open(os.path.join(hparams["save_dir"], "eval_qsar.csv"), 'a') as f:
         writer = csv.writer(f)
         writer.writerow(fields)
 
@@ -170,7 +170,7 @@ def eval_reconstruct(model, step, hparams):
     header = ["step"] + list(model.model.measures_to_log.keys())
     fields = [step]
     if step == 0:
-        with open(os.path.join(hparams.save_dir, "eval_reconstruct.csv"), 'w') as f:
+        with open(os.path.join(hparams["save_dir"], "eval_reconstruct.csv"), 'w') as f:
             writer = csv.writer(f)
             writer.writerow(header)
     measures = []
@@ -180,6 +180,6 @@ def eval_reconstruct(model, step, hparams):
         except tf.errors.OutOfRangeError:
             break
     fields.extend(np.mean(measures, axis=0).tolist())
-    with open(os.path.join(hparams.save_dir, "eval_reconstruct.csv"), 'a') as f:
+    with open(os.path.join(hparams["save_dir"], "eval_reconstruct.csv"), 'a') as f:
         writer = csv.writer(f)
         writer.writerow(fields)

@@ -2,7 +2,6 @@
 
 import os
 import json
-import tensorflow as tf
 DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data'))
 
 def add_arguments(parser):
@@ -67,56 +66,15 @@ def add_arguments(parser):
 
 def create_hparams(flags):
     """Create training hparams."""
-    hparams = tf.contrib.training.HParams(
-        model=flags.model,
-        input_pipeline=flags.input_pipeline,
-        input_sequence_key=flags.input_sequence_key,
-        output_sequence_key=flags.output_sequence_key,
-        cell_size=flags.cell_size,
-        emb_size=flags.emb_size,
-        save_dir=flags.save_dir,
-        device=flags.device,
-        lr=flags.learning_rate,
-        gpu_mem_frac=flags.gpu_mem_frac,
-        num_steps=flags.num_steps,
-        summary_freq=flags.summary_freq,
-        inference_freq=flags.inference_freq,
-        batch_size=flags.batch_size,
-        one_hot_embedding = flags.one_hot_embedding,
-        char_embedding_size=flags.char_embedding_size,
-        train_file=flags.train_file,
-        val_file=flags.val_file,
-        infer_file=flags.infer_file,
-        allow_soft_placement=flags.allow_soft_placement,
-        cpu_threads=flags.cpu_threads,
-        overwrite_saves=flags.overwrite_saves,
-        input_dropout=flags.input_dropout,
-        emb_noise=flags.emb_noise,
-        conv_hidden_size=flags.conv_hidden_size,
-        kernel_size=flags.kernel_size,
-        reverse_decoding=flags.reverse_decoding,
-        buffer_size=flags.buffer_size,
-        lr_decay=flags.lr_decay,
-        lr_decay_frequency=flags.lr_decay_frequency,
-        lr_decay_factor=flags.lr_decay_factor,
-        num_buckets=flags.num_buckets,
-        min_bucket_length=flags.min_bucket_length,
-        max_bucket_length=flags.max_bucket_length,
-        num_features=flags.num_features,
-        rand_input_swap=flags.rand_input_swap,
-        infer_input=flags.infer_input,
-        emb_activation=flags.emb_activation,
-        div_loss_scale=flags.div_loss_scale,
-        div_loss_rate=flags.div_loss_rate,
-    )
-    hparams.add_hparam("encode_vocabulary_file", os.path.join(DEFAULT_DATA_DIR, "indices_char.npy"))
-    hparams.add_hparam("decode_vocabulary_file", os.path.join(DEFAULT_DATA_DIR, "indices_char.npy"))
+    hparams = vars(flags)
+    hparams["encode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
+    hparams["decode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
     hparams_file_name = flags.hparams_file_name
     if hparams_file_name is None:
-        hparams_file_name = os.path.join(hparams.save_dir, 'hparams.json')
+        hparams_file_name = os.path.join(hparams["save_dir"], "hparams.json")
     if flags.hparams_from_file:
-        hparams.cell_size = list()
-        hparams = hparams.parse_json(json.load(open(hparams_file_name)))
-        hparams.set_hparam("encode_vocabulary_file", os.path.join(DEFAULT_DATA_DIR, "indices_char.npy"))
-        hparams.set_hparam("decode_vocabulary_file", os.path.join(DEFAULT_DATA_DIR, "indices_char.npy"))
+        hparams["cell_size"] = list()
+        hparams.update(json.loads(json.load(open(hparams_file_name))))
+        hparams["encode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
+        hparams["decode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
     return hparams

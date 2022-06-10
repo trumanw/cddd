@@ -42,24 +42,24 @@ class InputPipeline():
             None
         """
         self.mode = mode
-        self.batch_size = hparams.batch_size
-        self.buffer_size = hparams.buffer_size
-        self.input_sequence_key = hparams.input_sequence_key
-        self.output_sequence_key = hparams.output_sequence_key
+        self.batch_size = hparams["batch_size"]
+        self.buffer_size = hparams["buffer_size"]
+        self.input_sequence_key = hparams["input_sequence_key"]
+        self.output_sequence_key = hparams["output_sequence_key"]
         if self.mode == "TRAIN":
-            self.file = hparams.train_file
+            self.file = hparams["train_file"]
         else:
             self.input_sequence_key = "canonical_smiles"
-            self.file = hparams.val_file
+            self.file = hparams["val_file"]
         self.encode_vocabulary = {
-            v: k for k, v in np.load(hparams.encode_vocabulary_file, allow_pickle=True).item().items()
+            v: k for k, v in np.load(hparams["encode_vocabulary_file"], allow_pickle=True).item().items()
         }
         self.decode_vocabulary = {
-            v: k for k, v in np.load(hparams.decode_vocabulary_file, allow_pickle=True).item().items()
+            v: k for k, v in np.load(hparams["decode_vocabulary_file"], allow_pickle=True).item().items()
         }
-        self.num_buckets = hparams.num_buckets
-        self.min_bucket_lenght = hparams.min_bucket_length
-        self.max_bucket_lenght = hparams.max_bucket_length
+        self.num_buckets = hparams["num_buckets"]
+        self.min_bucket_lenght = hparams["min_bucket_length"]
+        self.max_bucket_lenght = hparams["max_bucket_length"]
         if "inchi" in self.input_sequence_key:
             self.regex_pattern_input = REGEX_INCHI
         elif "smiles" in self.input_sequence_key:
@@ -228,7 +228,7 @@ class InputPipelineWithFeatures(InputPipeline):
         """
         super().__init__(mode, hparams)
         self.features_key = "mol_features"
-        self.num_features = hparams.num_features
+        self.num_features = hparams["num_features"]
 
     def make_dataset_and_iterator(self):
         """Method that builds a TFRecordDataset and creates a iterator."""
@@ -320,11 +320,11 @@ class InputPipelineInferEncode():
             None
         """
         self.seq_list = seq_list
-        self.batch_size = hparams.batch_size
+        self.batch_size = hparams["batch_size"]
         self.encode_vocabulary = {
-            v: k for k, v in np.load(hparams.encode_vocabulary_file, allow_pickle=True).item().items()
+            v: k for k, v in np.load(hparams["encode_vocabulary_file"], allow_pickle=True).item().items()
         }
-        self.input_sequence_key = hparams.input_sequence_key
+        self.input_sequence_key = hparams["input_sequence_key"]
         if "inchi" in self.input_sequence_key:
             self.regex_pattern_input = REGEX_INCHI
         elif "smiles" in self.input_sequence_key:
@@ -405,7 +405,7 @@ class InputPipelineInferDecode():
             None
         """
         self.embedding = embedding
-        self.batch_size = hparams.batch_size
+        self.batch_size = hparams["batch_size"]
 
     def _input_generator(self):
         """Function that defines the generator."""
