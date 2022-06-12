@@ -1,7 +1,8 @@
 """Functions that build the data input pipeline for the translation model."""
 import re
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf2
+import tensorflow.compat.v1 as tf
 
 REGEX_SML = r'Cl|Br|[#%\)\(\+\-1032547698:=@CBFIHONPS\[\]cionps]'
 REGEX_INCHI = r'Br|Cl|[\(\)\+,-/123456789CFHINOPSchpq]'
@@ -85,7 +86,17 @@ class InputPipeline():
                                         element[self.output_sequence_key]],
                                        [tf.int32, tf.int32, tf.int32, tf.int32]),
             num_parallel_calls=32)
-        self.dataset = self.dataset.apply(tf.contrib.data.group_by_window(
+        # self.dataset = self.dataset.apply(tf2.data.Dataset.group_by_window(
+        #     key_func=lambda in_seq, out_seq, in_len, out_len: self._length_bucket(in_len),
+        #     reduce_func=lambda key, ds: self._pad_batch(
+        #         ds,
+        #         self.batch_size,
+        #         ([None], [None], [1], [1]),
+        #         (self.encode_vocabulary["</s>"], self.decode_vocabulary["</s>"], 0, 0)
+        #     ),
+        #     window_size=self.batch_size
+        # ))
+        self.dataset = self.dataset.group_by_window(
             key_func=lambda in_seq, out_seq, in_len, out_len: self._length_bucket(in_len),
             reduce_func=lambda key, ds: self._pad_batch(
                 ds,
@@ -94,10 +105,11 @@ class InputPipeline():
                 (self.encode_vocabulary["</s>"], self.decode_vocabulary["</s>"], 0, 0)
             ),
             window_size=self.batch_size
-        ))
+        )
         if self.mode == "TRAIN":
             self.dataset = self.dataset.shuffle(buffer_size=self.buffer_size)
-        self.iterator = self.dataset.make_initializable_iterator()
+        # self.iterator = self.dataset.make_initializable_iterator()
+        self.iterator = tf.data.make_initializable_iterator(self.dataset)
 
     def _parse_element(self, example_proto):
         """Method that parses an element from a tf-record file."""
@@ -244,7 +256,16 @@ class InputPipelineWithFeatures(InputPipeline):
                  element[self.features_key]],
                 [tf.int32, tf.int32, tf.int32, tf.int32, tf.float32]),
             num_parallel_calls=32)
-        self.dataset = self.dataset.apply(tf.contrib.data.group_by_window(
+        # self.dataset = self.dataset.apply(tf2.data.Dataset.group_by_window(
+        #     key_func=lambda in_seq, out_seq, in_len, out_len, feat: self._length_bucket(in_len),
+        #     reduce_func=lambda key, ds: self._pad_batch(
+        #         ds,
+        #         self.batch_size,
+        #         ([None], [None], [1], [1], [self.num_features]),
+        #         (self.encode_vocabulary["</s>"], self.decode_vocabulary["</s>"], 0, 0, 0.0)
+        #     ),
+        #     window_size=self.batch_size))
+        self.dataset = self.dataset.group_by_window(
             key_func=lambda in_seq, out_seq, in_len, out_len, feat: self._length_bucket(in_len),
             reduce_func=lambda key, ds: self._pad_batch(
                 ds,
@@ -252,10 +273,12 @@ class InputPipelineWithFeatures(InputPipeline):
                 ([None], [None], [1], [1], [self.num_features]),
                 (self.encode_vocabulary["</s>"], self.decode_vocabulary["</s>"], 0, 0, 0.0)
             ),
-            window_size=self.batch_size))
+            window_size=self.batch_size
+        )
         if self.mode == "TRAIN":
             self.dataset = self.dataset.shuffle(buffer_size=self.buffer_size)
-        self.iterator = self.dataset.make_initializable_iterator()
+        # self.iterator = self.dataset.make_initializable_iterator()
+        self.iterator = tf.data.make_initializable_iterator(self.dataset)
 
     def _parse_element(self, example_proto):
         """Method that parses an element from a tf-record file."""

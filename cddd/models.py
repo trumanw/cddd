@@ -3,7 +3,7 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 import numpy as np
-import tensorflow as tfnew
+import tensorflow as tf2
 import tensorflow.compat.v1 as tf
 import tensorflow_addons as tfa
 
@@ -416,7 +416,7 @@ class GRUSeq2Seq(BaseModel):
         """Method that defines the encoder part of the translation model graph."""
         # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
         # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
-        encoder_cell = [tfnew.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -434,22 +434,33 @@ class GRUSeq2Seq(BaseModel):
             self.cell_size = self.cell_size[::-1]
         # decoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
         # decoder_cell = tf.nn.rnn_cell.MultiRNNCell(decoder_cell)
-        decoder_cell = [tfnew.keras.layers.GRUCell(size) for size in self.cell_size] 
-        decoder_cell = tfnew.keras.layers.StackedRNNCells(decoder_cell)
+        decoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size] 
+        decoder_cell = tf2.keras.layers.StackedRNNCells(decoder_cell)
         decoder_cell_inital = tf.layers.dense(encoded_seq, sum(self.cell_size))
         decoder_cell_inital = tuple(tf.split(decoder_cell_inital, self.cell_size, 1))
-        projection_layer = tf.layers.Dense(self.decode_voc_size, use_bias=False)
+        projection_layer = tf2.keras.layers.Dense(self.decode_voc_size, use_bias=False)
         if self.mode != "DECODE":
-            helper = tf.contrib.seq2seq.TrainingHelper(decoder_emb_inp,
-                                                       sequence_length=self.shifted_target_len,
-                                                       time_major=False)
-            decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                      helper,
-                                                      decoder_cell_inital,
-                                                      output_layer=projection_layer)
-            outputs, output_state, _ = tfa.seq2seq.dynamic_decode(decoder,
-                                                                         impute_finished=True,
-                                                                         output_time_major=False)
+            # helper = tfa.seq2seq.TrainingHelper(decoder_emb_inp,
+            #                                            sequence_length=self.shifted_target_len,
+            #                                            time_major=False)
+            sampler = tfa.seq2seq.TrainingSampler(time_major=False)
+            # helper = train_sampler.initialize(decoder_emb_inp, sequence_length=self.shifted_target_len)
+            # decoder = tfa.seq2seq.BasicDecoder(decoder_cell,
+            #                                           helper,
+            #                                           decoder_cell_inital,
+            #                                           output_layer=projection_layer)
+            decoder = tfa.seq2seq.BasicDecoder(decoder_cell, sampler, projection_layer)
+
+            # outputs, output_state, _ = tfa.seq2seq.dynamic_decode(decoder,
+            #                                                     impute_finished=True,
+            #                                                     output_time_major=False)
+            # initial_state = decoder_cell.get_initial_state(self.batch_size, dtype=tf.float32)
+
+            outputs, _, _ = decoder(
+                decoder_emb_inp, 
+                initial_state=decoder_cell_inital, 
+                sequence_length=self.shifted_target_len)
+
             return outputs.rnn_output
         else:
             decoder_cell_inital = tfa.seq2seq.tile_batch(decoder_cell_inital,
@@ -716,16 +727,19 @@ class LSTMSeq2Seq(BaseModel):
         initial_state_h_full = tf.zeros_like(initial_state_c_full)
         initial_state_h = tuple(tf.split(initial_state_h_full, self.cell_size, 1))
         decoder_cell_inital = tuple(
-            [tf.contrib.rnn.LSTMStateTuple(
+            [tf.nn.rnn_cell.LSTMStateTuple(
                 initial_state_c[i],
                 initial_state_h[i]) for i in range(len(self.cell_size))
             ]
         )
-        helper = tf.contrib.seq2seq.TrainingHelper(decoder_emb_inp,
-                                                   sequence_length=self.shifted_target_len,
-                                                   time_major=False)
-        projection_layer = tf.layers.Dense(self.decode_voc_size, use_bias=False)
-        decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+        # helper = tfa.seq2seq.TrainingHelper(decoder_emb_inp,
+        #                                            sequence_length=self.shifted_target_len,
+        #                                            time_major=False)
+        train_sampler = tfa.seq2seq.TrainingSampler(time_major=False)
+        helper = train_sampler.initialize(decoder_emb_inp, sequence_length=self.shifted_target_len)
+        
+        projection_layer = tf.keras.layers.Dense(self.decode_voc_size, use_bias=False)
+        decoder = tfa.seq2seq.BasicDecoder(decoder_cell,
                                                   helper,
                                                   decoder_cell_inital,
                                                   output_layer=projection_layer)

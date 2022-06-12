@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 import pandas as pd
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from cddd.inference import InferenceModel
 from cddd.preprocessing import preprocess_smiles
 from cddd.hyperparameters import DEFAULT_DATA_DIR

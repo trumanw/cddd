@@ -30,35 +30,36 @@ def dataframe_to_tfrecord(df,
         None
     """
 
-    writer = tf.python_io.TFRecordWriter(tfrecord_file_name)
-    if shuffle_first:
-        df = df.sample(frac=1).reset_index(drop=True)
-    for index, row in df.iterrows():
-        feature_dict = {}
-        if canonical_smiles_key is not None:
-            canonical_smiles = row[canonical_smiles_key].encode("ascii")
-            feature_dict["canonical_smiles"] = tf.train.Feature(
-                bytes_list=tf.train.BytesList(value=[canonical_smiles])
-            )
-        if random_smiles_key is not None:
-            random_smiles = row[random_smiles_key].encode("ascii")
-            feature_dict["random_smiles"] = tf.train.Feature(
-                bytes_list=tf.train.BytesList(value=[random_smiles])
-            )
-        if inchi_key is not None:
-            inchi = row[inchi_key].encode("ascii")
-            feature_dict["inchi"] = tf.train.Feature(
-                bytes_list=tf.train.BytesList(value=[inchi])
-            )
-        if mol_feature_keys is not None:
-            mol_features = row[mol_feature_keys].values.astype(np.float32)
-            feature_dict["mol_features"] = tf.train.Feature(
-                float_list=tf.train.FloatList(value=mol_features)
-            )
-        example = tf.train.Example(features=tf.train.Features(feature=feature_dict))
-        serialized = example.SerializeToString()
-        writer.write(serialized)
-    writer.close()
+    # writer = tf.io.TFRecordWriter(tfrecord_file_name)
+    with tf.io.TFRecordWriter(tfrecord_file_name) as tfrecord_writer:
+        if shuffle_first:
+            df = df.sample(frac=1).reset_index(drop=True)
+        for index, row in df.iterrows():
+            feature_dict = {}
+            if canonical_smiles_key is not None:
+                canonical_smiles = row[canonical_smiles_key].encode("ascii")
+                feature_dict["canonical_smiles"] = tf.train.Feature(
+                    bytes_list=tf.train.BytesList(value=[canonical_smiles])
+                )
+            if random_smiles_key is not None:
+                random_smiles = row[random_smiles_key].encode("ascii")
+                feature_dict["random_smiles"] = tf.train.Feature(
+                    bytes_list=tf.train.BytesList(value=[random_smiles])
+                )
+            if inchi_key is not None:
+                inchi = row[inchi_key].encode("ascii")
+                feature_dict["inchi"] = tf.train.Feature(
+                    bytes_list=tf.train.BytesList(value=[inchi])
+                )
+            if mol_feature_keys is not None:
+                mol_features = row[mol_feature_keys].values.astype(np.float32)
+                feature_dict["mol_features"] = tf.train.Feature(
+                    float_list=tf.train.FloatList(value=mol_features)
+                )
+            example = tf.train.Example(features=tf.train.Features(feature=feature_dict))
+            serialized = example.SerializeToString()
+            tfrecord_writer.write(serialized)
+    # writer.close()
 
 def randomize_smile(sml):
     """Function that randomizes a SMILES sequnce. This was adapted from the

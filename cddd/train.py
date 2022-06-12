@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 import json
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from cddd.model_helper import build_models
 from cddd.evaluation import eval_reconstruct, parallel_eval_qsar
 from cddd.hyperparameters import add_arguments, create_hparams
@@ -43,13 +43,14 @@ def train_loop(train_model, eval_model, encoder_model, hparams):
                 eval_model.model.restore(eval_model.sess)
                 eval_model.sess.run(eval_model.model.iterator.initializer)
                 eval_reconstruct(eval_model, step, hparams)
-        if step % hparams["inference_freq"] == 0:
-            with encoder_model.graph.as_default():
-                qsar_process.append(parallel_eval_qsar(encoder_model,
-                                                       step,
-                                                       hparams))
-    for process in qsar_process:
-        process.join()
+        print(step)
+        # if step % hparams["inference_freq"] == 0:
+        #     with encoder_model.graph.as_default():
+        #         qsar_process.append(parallel_eval_qsar(encoder_model,
+        #                                                step,
+        #                                                hparams))
+    # for process in qsar_process:
+    #     process.join()
 
 def main(unused_argv):
     """Main function that trains and evaluats the translation model"""

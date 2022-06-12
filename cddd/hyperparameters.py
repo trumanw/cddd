@@ -74,7 +74,7 @@ def create_hparams(flags):
         hparams_file_name = os.path.join(hparams["save_dir"], "hparams.json")
     if flags.hparams_from_file:
         hparams["cell_size"] = list()
-        hparams.update(json.loads(json.load(open(hparams_file_name))))
+        hparams.update(json.load(open(hparams_file_name)))
         hparams["encode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
         hparams["decode_vocabulary_file"] = os.path.join(DEFAULT_DATA_DIR, "indices_char.npy")
     return hparams
