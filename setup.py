@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='cddd',
     version='1.2.2',
-    packages=['cddd', 'cddd.data', 'cddd.data.default_model'],
+    packages=['cddd', 'cddd.data'],
     include_package_data=True,
     url='https://github.com/jrwnter/cddd',
     download_url='https://github.com/jrwnter/cddd/archive/refs/tags/1.2.2.tar.gz',
