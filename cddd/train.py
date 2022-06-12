@@ -43,7 +43,6 @@ def train_loop(train_model, eval_model, encoder_model, hparams):
                 eval_model.model.restore(eval_model.sess)
                 eval_model.sess.run(eval_model.model.iterator.initializer)
                 eval_reconstruct(eval_model, step, hparams)
-        print(step)
         # if step % hparams["inference_freq"] == 0:
         #     with encoder_model.graph.as_default():
         #         qsar_process.append(parallel_eval_qsar(encoder_model,
