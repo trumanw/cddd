@@ -2,6 +2,8 @@
 import os
 import shutil
 from abc import ABC, abstractmethod
+
+from pkg_resources import add_activation_listener
 import numpy as np
 import tensorflow as tf2
 import tensorflow.compat.v1 as tf
@@ -422,10 +424,13 @@ class GRUSeq2Seq(BaseModel):
                                                            sequence_length=self.input_len,
                                                            dtype=tf.float32,
                                                            time_major=False)
-        emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
-                              self.embedding_size,
-                              activation=self.emb_activation
-                             )
+        # emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
+        #                       self.embedding_size,
+        #                       activation=self.emb_activation
+        #                      )
+        emb = tf2.keras.layers.Dense(
+            self.embedding_size, activation=self.emb_activation)(
+                tf.concat(encoder_state, axis=1))
         return emb
 
     def _decoder(self, encoded_seq, decoder_emb_inp=None):
@@ -436,7 +441,8 @@ class GRUSeq2Seq(BaseModel):
         # decoder_cell = tf.nn.rnn_cell.MultiRNNCell(decoder_cell)
         decoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size] 
         decoder_cell = tf2.keras.layers.StackedRNNCells(decoder_cell)
-        decoder_cell_inital = tf.layers.dense(encoded_seq, sum(self.cell_size))
+        # decoder_cell_inital = tf.layers.dense(encoded_seq, sum(self.cell_size))
+        decoder_cell_inital = tf2.keras.layers.Dense(sum(self.cell_size))(encoded_seq)
         decoder_cell_inital = tuple(tf.split(decoder_cell_inital, self.cell_size, 1))
         projection_layer = tf2.keras.layers.Dense(self.decode_voc_size, use_bias=False)
         if self.mode != "DECODE":
@@ -488,21 +494,22 @@ class GRUSeq2Seq(BaseModel):
                 output_layer=projection_layer,
                 length_penalty_weight=0.0
             )
-            (first_finished, first_inputs, first_state) = decoder_instance.initialize(
+            (first_finished, first_inputs, first_state) = decoder_instance(
                 self.decoder_embedding,
                 start_tokens=start_tokens,
                 end_token=end_token,
                 initial_state=decoder_cell_inital
             )
             # start beam search iteration
-            inputs = first_inputs
-            state = first_state
-            for j in range(1000):
-                outputs, next_state, next_inputs, finished = decoder_instance.step(j, inputs, state)
-                inputs = next_inputs
-                state = next_state
+            # inputs = first_inputs
+            # state = first_state
+            # for j in range(1000):
+            #     outputs, next_state, next_inputs, finished = decoder_instance.step(j, inputs, state)
+            #     inputs = next_inputs
+            #     state = next_state
 
-            return outputs.predicted_ids
+            # return outputs.predicted_ids
+            return first_finished.predicted_ids
         
 class GRUVAE(GRUSeq2Seq):
     def __init__(self, mode, iterator, hparams):
@@ -513,19 +520,23 @@ class GRUVAE(GRUSeq2Seq):
     def _encoder(self, encoder_emb_inp):
 
         """Method that defines the encoder part of the translation model graph."""
-        encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
+        # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = tf2.keras.layers.StackedRNNCells(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
                                                            dtype=tf.float32,
                                                            time_major=False)
-        loc = tf.layers.dense(tf.concat(encoder_state, axis=1),
-                              self.embedding_size
-                             )
-        log_scale = tf.layers.dense(tf.concat(encoder_state, axis=1),
-                                self.embedding_size
-                               )
+        # loc = tf.layers.dense(tf.concat(encoder_state, axis=1),
+        #                       self.embedding_size
+        #                      )
+        # log_scale = tf.layers.dense(tf.concat(encoder_state, axis=1),
+        #                         self.embedding_size
+        #                        )
+        loc = tf2.keras.layers.Dense(self.embedding_size)(tf.concat(encoder_state, axis=1))
+        log_scale = tf2.keras.layers.Dense(self.embedding_size)(tf.concat(encoder_state, axis=1))
         return loc, log_scale
     
     def _sampler(self, loc, log_scale):
@@ -660,16 +671,21 @@ class NoisyGRUSeq2Seq(GRUSeq2Seq):
             encoder_emb_inp = tf.nn.dropout(encoder_emb_inp,
                                             1. - self.input_dropout,
                                             noise_shape=[self.batch_size, max_time, 1])
-        encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
+        # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = tf2.keras.layers.StackedRNNCells(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
                                                            dtype=tf.float32,
                                                            time_major=False)
-        emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
-                              self.embedding_size
-                             )
+        # emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
+        #                       self.embedding_size
+        #                      )
+        emb = tf2.keras.layers.Dense(
+            self.embedding_size)(
+                tf.concat(encoder_state, axis=1))
         if (self.mode == "TRAIN") & (self.emb_noise > 0.0):
             emb += tf.random_normal(shape=tf.shape(emb),
                                     mean=0.0,
@@ -712,17 +728,22 @@ class LSTMSeq2Seq(BaseModel):
                                                            dtype=tf.float32,
                                                            time_major=False)
         encoder_state_c = [state.c for state in encoder_state]
-        emb = tf.layers.dense(tf.concat(encoder_state_c, axis=1),
-                              self.embedding_size,
-                              activation=self.emb_activation
-                             )
+        # emb = tf.layers.dense(tf.concat(encoder_state_c, axis=1),
+        #                       self.embedding_size,
+        #                       activation=self.emb_activation
+        #                      )
+        emb = tf2.keras.layers.Dense(
+            self.embedding_size, 
+            activation=self.emb_activation)(
+                tf.concat(encoder_state_c, axis=1))
         return emb
 
     def _decoder(self, encoded_seq, decoder_emb_inp=None):
         """Method that defines the decoder part of the translation model graph."""
         decoder_cell = [tf.nn.rnn_cell.LSTMCell(size) for size in self.cell_size]
         decoder_cell = tf.nn.rnn_cell.MultiRNNCell(decoder_cell)
-        initial_state_c_full = tf.layers.dense(encoded_seq, sum(self.cell_size))
+        # initial_state_c_full = tf.layers.dense(encoded_seq, sum(self.cell_size))
+        initial_state_c_full  = tf2.keras.layers.Dense(sum(self.cell_size))(encoded_seq)
         initial_state_c = tuple(tf.split(initial_state_c_full, self.cell_size, 1))
         initial_state_h_full = tf.zeros_like(initial_state_c_full)
         initial_state_h = tuple(tf.split(initial_state_h_full, self.cell_size, 1))
@@ -790,10 +811,14 @@ class Conv2GRUSeq2Seq(GRUSeq2Seq):
                              activation=tf.nn.relu,
                              padding='SAME')
 
-        emb = tf.layers.dense(tf.reduce_mean(x, axis=1),
-                              self.embedding_size,
-                              activation=self.emb_activation
-                             )
+        # emb = tf.layers.dense(tf.reduce_mean(x, axis=1),
+        #                       self.embedding_size,
+        #                       activation=self.emb_activation
+        #                      )
+        emb = tf2.keras.layers.Dense(
+            self.embedding_size, 
+            activation=self.emb_activation)(
+                tf.reduce_mean(x, axis=1))
         return emb
 
 class GRUSeq2SeqWithFeatures(GRUSeq2Seq):
@@ -894,18 +919,21 @@ class GRUSeq2SeqWithFeatures(GRUSeq2Seq):
 
     def _feature_regression(self, encoded_seq):
         """Method that defines the feature classification part of the graph."""
-        x = tf.layers.dense(inputs=encoded_seq,
-                            units=512,
-                            activation=tf.nn.relu
-                            )
-        x = tf.layers.dense(inputs=x,
-                            units=128,
-                            activation=tf.nn.relu
-                            )
-        x = tf.layers.dense(inputs=x,
-                            units=self.num_features,
-                            activation=None
-                            )
+        # x = tf.layers.dense(inputs=encoded_seq,
+        #                     units=512,
+        #                     activation=tf.nn.relu
+        #                     )
+        x = tf2.keras.layers.Dense(512, activation=tf.nn.relu)(encoded_seq)
+        # x = tf.layers.dense(inputs=x,
+        #                     units=128,
+        #                     activation=tf.nn.relu
+        #                     )
+        x = tf2.keras.layers.Dense(128, activation=tf.nn.relu)(x)
+        # x = tf.layers.dense(inputs=x,
+        #                     units=self.num_features,
+        #                     activation=None
+        #                     )
+        x = tf2.keras.layers.Dense(self.num_features)(x)
 
         return x
 
@@ -954,16 +982,19 @@ class NoisyGRUSeq2SeqWithFeatures(GRUSeq2SeqWithFeatures):
             encoder_emb_inp = tf.nn.dropout(encoder_emb_inp,
                                             1. - self.input_dropout,
                                             noise_shape=[self.batch_size, max_time, 1])
-        encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
-        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
+        # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = tf2.keras.layers.StackedRNNCells(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
                                                            dtype=tf.float32,
                                                            time_major=False)
-        emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
-                              self.embedding_size
-                             )
+        # emb = tf.layers.dense(tf.concat(encoder_state, axis=1),
+        #                       self.embedding_size
+        #                      )
+        emb = tf2.keras.layers.Dense(self.embedding_size)(tf.concat(encoder_state, axis=1))
         if (self.emb_noise >= 0) & (self.mode == "TRAIN"):
             emb += tf.random_normal(shape=tf.shape(emb),
                                     mean=0.0,
