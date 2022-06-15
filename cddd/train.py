@@ -34,7 +34,6 @@ def train_loop(train_model, eval_model, encoder_model, hparams):
     with open(hparams_file_name, 'w') as outfile:
         json.dump(hparams, outfile)
     while step < hparams["num_steps"]:
-        print(step)
         with train_model.graph.as_default():
             step = train_model.model.train(train_model.sess)
         if step % hparams["summary_freq"] == 0:

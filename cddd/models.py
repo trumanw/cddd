@@ -419,6 +419,7 @@ class GRUSeq2Seq(BaseModel):
         # encoder_cell = [tf.nn.rnn_cell.GRUCell(size) for size in self.cell_size]
         # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
         encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = tf2.keras.layers.StackedRNNCells(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
@@ -720,8 +721,10 @@ class LSTMSeq2Seq(BaseModel):
 
     def _encoder(self, encoder_emb_inp):
         """Method that defines the encoder part of the translation model graph."""
-        encoder_cell = [tf.nn.rnn_cell.LSTMCell(size) for size in self.cell_size]
-        encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        # encoder_cell = [tf.nn.rnn_cell.LSTMCell(size) for size in self.cell_size]
+        # encoder_cell = tf.nn.rnn_cell.MultiRNNCell(encoder_cell)
+        encoder_cell = [tf2.keras.layers.GRUCell(size) for size in self.cell_size]
+        encoder_cell = tf2.keras.layers.StackedRNNCells(encoder_cell)
         encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                            encoder_emb_inp,
                                                            sequence_length=self.input_len,
